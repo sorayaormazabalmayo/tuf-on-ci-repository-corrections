@@ -23,7 +23,7 @@ The optimal use case is TUF repositories with a low to moderate frequency of cha
 ## Documentation
 
 * [Signer Manual](docs/SIGNER-MANUAL.md)
-* [Repository Maintenance Manual](docs/REPOSITORY-MAINTENANCE.md)
+* [Repository Initialization and Maintenance Manual](docs/REPOSITORY-INITIALIZATION-AND-MAINTENANCE.md)
 * [Developer notes](docs/DEVELOPMENT.md)
 
 ## Deployments

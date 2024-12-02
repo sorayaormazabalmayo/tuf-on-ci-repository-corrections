@@ -1,4 +1,4 @@
-# TUF-on-CI Repository Maintenance Manual
+# TUF-on-CI Repository Initialization and Maintenance Manual
 
 This page documents the initial setup of a TUF-on-CI repository as well as the
 ongoing maintenance.
@@ -13,26 +13,68 @@ ongoing maintenance.
      `publish`
    * Check _Settings->Actions->General->Allow GitHub Actions to create and approve pull requests_
      (not required if you are using a custom token, see below)
-1. Clone the repository locally and [configure your local signing tool](SIGNER-SETUP.md)
+1. Clone the repository locally and [configure your local signing tool](SIGNER-SETUP.md).
 1. Choose your online signing method and [configure it](ONLINE-SIGNING-SETUP.md):
    * Google Cloud KMS, Azure Key Vault, and AWS KMS are fully supported
    * Sigstore requires no configuration (but is experimental)
 1. Run `tuf-on-ci-delegate sign/init` to configure the repository and to start the
-   first signing event
-   * The tool prompts for various repository details and finally prompts to
-     sign and push the initial metadata to a signing event branch
-1. When this initial signing event branch is merged, the repository generates the
-   first snapshot and timestamp, and publishes the first repository version
+   first signing event.
+   * The command creates a remote branch sign/init and the process for creating a new TUF-on-CI repository starts.
+   * The roles signing method and expiring dates can be configured.
+1. Sign the `root` and `targets` roles.
+1. Push the changes to the remote repository.
+1. The "TUF-on-CI signing event" workflow will be executed.  
+1. After the "TUF-on-CI signing event" workflow that verifies that the signing event is successful, merge the pull request.
+1. When this initial signing event branch is merged, the repository generates the first snapshot and timestamp, and publishes the first repository version.
+
+It should be mentioned that the initial `tuf-on-ci-delegate` command does not look into `/targets` and does not include the hashes for the artifacts. For adding a target file(s), the procedure outlined below should be followed.
+
+## Adding and modifying artifacts in the repository
+
+Artifacts are stored in git (in the `targets/` directory) and are modified using normal git tools: the signing tool is not used. Artifact modification commits should get pushed to a branch on the repository (with a branch name starting with "sign/"): this creates a signing event for the artifact change allowing signers to sign that change.
+
+Considering this, the following steps should be followed to add or modify an artifact. For simplicity, this example will use Sigstore for signing. Repository initialization mentioned before should have been done.
+
+1. Update the local repository with the latest changes from the remote repository without modifying the working directory. This can be done with `git fetch`.
+2. Create a new branch that starts with "sign/" and set its starting point to the latest commit from `origin/main`. This can be performed with `git switch -c sign/add-a-target origin/main`.
+
+3. Create `targets` directory. This can be done with `mkdir targets`.
+
+4. Perform the desired modifications to the `targets` directory. For this example, a new target file named "file1.txt" will be added to the `targets` directory echo `"artifact" > targets/file1.txt`.
+
+5. Stage the changes `git add targets/file1.txt`.
+
+6. Commit the changes with `git commit -m "New artifact file1.txt, managed by targets"`.
+
+7. Push the branch with `git push origin sign/add-a-target`.
+
+8. A TUF-on-CI signing event workflow is created. When it finishes, in the TUF-on-CI signing event summary, it can be appreciated that the current signing event state tells that the "targets" role is still unsigned.
+
+9. Signers can change the changes by running the `tuf-on-ci-sign sign/add-a-target`.
+  
+10. Authenticate with Sigstore for signing.
+
+11. Press enter to push changes to `origin/sign/add-a-target`.
+
+12. When pushing the changes, a TUF-on-CI signing event is created. If the signing procedure has been performed correctly, the current signing event state will show that the "targets" role has been verified and signed correctly.
+
+13. Merge the pull request. When merging, the online-sign workflow is enabled, which is in charge of signing the `snapshot`and `timestamp`roles.
+
+14. After the online-signing workflow, the publish workflow is performed.
+
+It should be outlined that the online signing will be performed automatically and will generate new versions of `targets` and `timestamp`. The concurrence of this signing will depend on the expiring time chosen. However, when the `targets` or `root`metadata is expired, a new signing event will be created that will require the sign of the signers/maintainers. More information about signing can be found in [here](SIGNER-MANUAL.md).
 
 ## Modifying roles and creating new ones
 
 Modifying a role is needed when:
+
 * A new delegated role is created
 * A new signer is invited to a role
 * A signer is removed from a role
 * The required threshold of signatures is changed
 
 Roles are modified with `tuf-on-ci-delegate <event> <role>`.
+
 * The event name can be chosen freely (and will be used as a branch name). If the signing
   event does not exist yet, it will be created as a result.
 * The tool will prompt for new signers and other details, and then prompt to push changes
@@ -101,6 +143,7 @@ tuf-on-ci release notes will mention when workflows change and typically the sug
 upgrade mechanism is to copy the modified workflows from tuf-on-ci-template.
 
 Supported ways to configure and modify tuf-on-ci workflows:
+
 * online signing is configured using signing method specific _Repository Variables_,
   see [ONLINE-SIGNING-SETUP.md](ONLINE-SIGNING-SETUP.md) for details
 * A custom GitHub token can be optionally configured with _Repository Secret_
@@ -123,6 +166,7 @@ token. This allows the project to limit the default GITHUB_TOKEN permissions
 permission default token while tuf-on-ci workflows still have higher permissions).
 
 The custom token needs the following repository permissions:
+
 * `Actions: write` to dispatch other workflows when needed
 * `Contents: write` to create online signing commits, and to create targets metadata
   change commits in signing event
@@ -135,6 +179,7 @@ in signing event pull requests will be seemingly made by the account that create
 token: Creating the token on a "bot" account is sensible for this reason.
 
 When a custom token is used, some repository security settings can be tightened:
+
 * _Settings->Actions->General->Allow GitHub Actions to create and approve pull requests_
   can be disabled
 * Custom token owner (bot) can be added to _Allow specified actors to bypass required
